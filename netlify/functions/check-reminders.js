@@ -3,15 +3,20 @@ exports.handler = async (event, context) => {
   const SUPABASE_KEY = process.env.SUPABASE_ANON_KEY;
   const RESEND_API_KEY = process.env.RESEND_API_KEY;
 
+  console.log("Variables cargadas:", { 
+    url: !!SUPABASE_URL, 
+    key: !!SUPABASE_KEY, 
+    resend: !!RESEND_API_KEY 
+  });
+
   if (!SUPABASE_URL || !SUPABASE_KEY || !RESEND_API_KEY) {
-    return { 
-      statusCode: 500, 
-      body: JSON.stringify({ error: "Faltan variables de entorno." }) 
-    };
+    console.error("Faltan variables de entorno en Netlify.");
+    return { statusCode: 500, body: JSON.stringify({ error: "Faltan variables de entorno." }) };
   }
 
   try {
     const hoy = new Date().toISOString().split('T')[0];
+    console.log("Buscando actividades para el día:", hoy);
 
     const respuesta = await fetch(
       `${SUPABASE_URL}/rest/v1/actividades?select=*,personas(*)&fecha_inicio=gte.${hoy}T00:00:00&fecha_inicio=lte.${hoy}T23:59:59&estado=eq.pendiente`,
@@ -24,12 +29,11 @@ exports.handler = async (event, context) => {
     );
 
     const actividades = await respuesta.json();
+    console.log("Actividades encontradas en Supabase:", JSON.stringify(actividades));
 
     if (!Array.isArray(actividades) || actividades.length === 0) {
-      return { 
-        statusCode: 200, 
-        body: JSON.stringify({ message: "No hay actividades pendientes para hoy." }) 
-      };
+      console.log("No se encontraron actividades pendientes para la fecha actual.");
+      return { statusCode: 200, body: JSON.stringify({ message: "No hay actividades para hoy." }) };
     }
 
     for (const item of actividades) {
@@ -37,8 +41,10 @@ exports.handler = async (event, context) => {
       const nombre = item.personas?.nombre || "Usuario";
       const titulo = item.titulo || "Tarea pendiente";
 
+      console.log(`Intentando enviar correo a: ${correo}`);
+
       if (correo) {
-        await fetch("https://api.resend.com/emails", {
+        const resendResp = await fetch("https://api.resend.com/emails", {
           method: "POST",
           headers: {
             "Authorization": `Bearer ${RESEND_API_KEY}`,
@@ -51,18 +57,16 @@ exports.handler = async (event, context) => {
             html: `<p>Hola <strong>${nombre}</strong>,</p><p>Tienes una actividad programada para hoy: <strong>${titulo}</strong>.</p>`
           })
         });
+
+        const resendData = await resendResp.json();
+        console.log("Respuesta de la API de Resend:", JSON.stringify(resendData));
       }
     }
 
-    return { 
-      statusCode: 200, 
-      body: JSON.stringify({ message: "Correos enviados exitosamente." }) 
-    };
+    return { statusCode: 200, body: JSON.stringify({ message: "Proceso completado." }) };
 
   } catch (error) {
-    return { 
-      statusCode: 500, 
-      body: JSON.stringify({ error: error.message }) 
-    };
+    console.error("Error en ejecución:", error.message);
+    return { statusCode: 500, body: JSON.stringify({ error: error.message }) };
   }
 };
