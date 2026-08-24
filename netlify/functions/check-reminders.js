@@ -2,12 +2,21 @@ const nodemailer = require("nodemailer");
 
 exports.handler = async (event, context) => {
   const SUPABASE_URL = process.env.SUPABASE_URL;
-  const SUPABASE_KEY = process.env.SUPABASE_ANON_KEY;
+  // Acepta SUPABASE_ANON_KEY o SUPABASE_KEY por si acaso
+  const SUPABASE_KEY = process.env.SUPABASE_ANON_KEY || process.env.SUPABASE_KEY;
   const GMAIL_USER = process.env.GMAIL_USER;
   const GMAIL_PASS = process.env.GMAIL_PASS;
 
+  // Imprime en el log cuáles variables existen (true) y cuáles faltan (false)
+  console.log("Chequeo de variables:", {
+    SUPABASE_URL: !!SUPABASE_URL,
+    SUPABASE_KEY: !!SUPABASE_KEY,
+    GMAIL_USER: !!GMAIL_USER,
+    GMAIL_PASS: !!GMAIL_PASS
+  });
+
   if (!SUPABASE_URL || !SUPABASE_KEY || !GMAIL_USER || !GMAIL_PASS) {
-    console.error("Faltan variables de entorno en Netlify.");
+    console.error("ERROR: Una o más variables de entorno no están disponibles.");
     return { statusCode: 500, body: JSON.stringify({ error: "Faltan variables de entorno." }) };
   }
 
@@ -35,6 +44,7 @@ exports.handler = async (event, context) => {
     const actividades = await respuesta.json();
 
     if (!Array.isArray(actividades) || actividades.length === 0) {
+      console.log("No hay actividades pendientes para el día de hoy.");
       return { statusCode: 200, body: JSON.stringify({ message: "No hay actividades para hoy." }) };
     }
 
@@ -44,6 +54,7 @@ exports.handler = async (event, context) => {
       const titulo = item.titulo || "Tarea pendiente";
 
       if (correo) {
+        console.log(`Enviando correo a ${correo}...`);
         await transporter.sendMail({
           from: `"Planificador Cloud" <${GMAIL_USER}>`,
           to: correo,
@@ -53,10 +64,11 @@ exports.handler = async (event, context) => {
       }
     }
 
+    console.log("Todos los correos se enviaron exitosamente.");
     return { statusCode: 200, body: JSON.stringify({ message: "Correos enviados exitosamente." }) };
 
   } catch (error) {
-    console.error("Error al enviar el correo:", error.message);
+    console.error("Error al ejecutar la función:", error.message);
     return { statusCode: 500, body: JSON.stringify({ error: error.message }) };
   }
 };
