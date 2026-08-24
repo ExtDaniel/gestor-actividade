@@ -1,0 +1,427 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Gestor de Actividades Cloud</title>
+  <!-- Supabase Client CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <style>
+    :root {
+      --primary-color: #5454E9;
+      --primary-hover: #3d3dd4;
+      --bg-color: #f8fafc;
+      --card-bg: #ffffff;
+      --text-color: #0f172a;
+      --text-muted: #64748b;
+      --border-color: #e2e8f0;
+      --radius: 10px;
+      --shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+    body { background-color: var(--bg-color); color: var(--text-color); padding-bottom: 40px; }
+    .container { max-width: 1100px; margin: 0 auto; padding: 0 20px; }
+
+    header { background: var(--card-bg); border-bottom: 1px solid var(--border-color); position: sticky; top: 0; z-index: 10; }
+    .header-content { display: flex; justify-content: space-between; align-items: center; height: 65px; }
+    .logo { font-size: 1.2rem; font-weight: 700; color: var(--primary-color); }
+    
+    .nav-tabs { display: flex; gap: 6px; }
+    .tab-btn { background: none; border: none; padding: 8px 14px; font-weight: 600; color: var(--text-muted); cursor: pointer; border-radius: var(--radius); }
+    .tab-btn.active { background: rgba(84, 84, 233, 0.1); color: var(--primary-color); }
+
+    .btn-primary { background: var(--primary-color); color: white; border: none; padding: 10px 16px; border-radius: var(--radius); font-weight: 600; cursor: pointer; }
+    .btn-primary:hover { background: var(--primary-hover); }
+    .btn-secondary { background: #e2e8f0; color: var(--text-color); border: none; padding: 8px 14px; border-radius: var(--radius); font-weight: 600; cursor: pointer; }
+
+    .dashboard-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; margin: 20px 0; }
+    .stat-card { background: var(--card-bg); padding: 16px; border-radius: var(--radius); border: 1px solid var(--border-color); box-shadow: var(--shadow); }
+    .stat-card .title { font-size: 0.8rem; color: var(--text-muted); font-weight: 600; text-transform: uppercase; }
+    .stat-card .number { font-size: 1.6rem; font-weight: 700; margin-top: 4px; }
+
+    .controls-bar { display: flex; flex-wrap: wrap; gap: 10px; justify-content: space-between; margin-bottom: 16px; background: var(--card-bg); padding: 12px; border-radius: var(--radius); border: 1px solid var(--border-color); }
+    .controls-bar input, .controls-bar select, input[type="text"], input[type="date"], select, textarea {
+      padding: 8px 12px; border: 1px solid var(--border-color); border-radius: var(--radius); outline: none; font-size: 0.9rem;
+    }
+
+    .activities-list { display: flex; flex-direction: column; gap: 10px; }
+    .activity-card { background: var(--card-bg); border-radius: var(--radius); padding: 16px; border: 1px solid var(--border-color); display: grid; grid-template-columns: auto 1fr auto; gap: 12px; align-items: start; }
+    .activity-card.completed { opacity: 0.55; background: #f1f5f9; }
+    .activity-card.completed .activity-title { text-decoration: line-through; }
+
+    .badge { font-size: 0.75rem; padding: 2px 8px; border-radius: 10px; font-weight: 600; }
+    .badge-pendiente { background: #e2e8f0; color: #475569; }
+    .badge-proxima { background: #e0e7ff; color: #3730a3; }
+    .badge-en-progreso { background: #dbeafe; color: #1e40af; }
+    .badge-vencida { background: #fee2e2; color: #991b1b; }
+    .badge-completada { background: #dcfce7; color: #166534; }
+
+    .modal-overlay { display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.4); z-index: 100; justify-content: center; align-items: center; padding: 20px; }
+    .modal { background: var(--card-bg); border-radius: var(--radius); width: 100%; max-width: 500px; padding: 20px; box-shadow: var(--shadow); }
+    .form-group { margin-bottom: 12px; display: flex; flex-direction: column; gap: 4px; }
+    .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+
+    @media (max-width: 600px) {
+      .activity-card { grid-template-columns: auto 1fr; }
+      .activity-actions { grid-column: span 2; justify-content: flex-end; display: flex; gap: 8px; }
+      .form-row { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+
+  <header>
+    <div class="container header-content">
+      <div class="logo">⚡ Planificador Cloud</div>
+      <nav class="nav-tabs">
+        <button class="tab-btn active" onclick="switchTab('dashboard')">Dashboard</button>
+        <button class="tab-btn" onclick="switchTab('people')">Personas</button>
+      </nav>
+      <button class="btn-primary" onclick="openTaskModal()">+ Nueva Actividad</button>
+    </div>
+  </header>
+
+  <main class="container" style="margin-top: 20px;">
+    
+    <!-- DASHBOARD -->
+    <section id="view-dashboard">
+      <div class="dashboard-grid">
+        <div class="stat-card"><div class="title">Total</div><div class="number" id="stat-total">0</div></div>
+        <div class="stat-card"><div class="title">Pendientes</div><div class="number" id="stat-pending">0</div></div>
+        <div class="stat-card"><div class="title">Próximas</div><div class="number" id="stat-upcoming">0</div></div>
+        <div class="stat-card"><div class="title">Vencidas</div><div class="number" id="stat-overdue" style="color:#ef4444;">0</div></div>
+        <div class="stat-card"><div class="title">Completadas</div><div class="number" id="stat-completed" style="color:#10b981;">0</div></div>
+      </div>
+
+      <div class="controls-bar">
+        <input type="text" id="search-input" placeholder="Buscar actividad..." oninput="renderActivities()" style="flex:1; min-width:180px;">
+        <select id="filter-status" onchange="renderActivities()">
+          <option value="ALL">Todos los estados</option>
+          <option value="Pendiente">Pendientes</option>
+          <option value="Próxima">Próximas</option>
+          <option value="En progreso">En progreso</option>
+          <option value="Vencida">Vencidas</option>
+          <option value="Completada">Completadas</option>
+        </select>
+        <select id="sort-by" onchange="renderActivities()">
+          <option value="date-asc">Fecha (Próxima primero)</option>
+          <option value="date-desc">Fecha (Lejana primero)</option>
+          <option value="priority">Prioridad</option>
+        </select>
+      </div>
+
+      <div class="activities-list" id="activities-container"></div>
+    </section>
+
+    <!-- PERSONAS -->
+    <section id="view-people" style="display: none;">
+      <h3 style="margin-bottom: 12px;">Directorio de Personas</h3>
+      <div style="background: var(--card-bg); padding: 16px; border-radius: var(--radius); border: 1px solid var(--border-color); max-width: 400px; margin-bottom: 20px;">
+        <div class="form-group"><label>Nombre</label><input type="text" id="person-name"></div>
+        <div class="form-group"><label>Correo</label><input type="text" id="person-email"></div>
+        <button class="btn-primary" onclick="addPerson()">Guardar Persona</button>
+      </div>
+      <div id="people-container" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 10px;"></div>
+    </section>
+  </main>
+
+  <!-- MODAL ACTIVIDAD -->
+  <div class="modal-overlay" id="task-modal">
+    <div class="modal">
+      <h3 id="modal-title" style="margin-bottom: 12px;">Nueva Actividad</h3>
+      <form id="task-form" onsubmit="saveTask(event)">
+        <input type="hidden" id="task-id">
+        <div class="form-group"><label>Nombre *</label><input type="text" id="task-name" required></div>
+        <div class="form-group"><label>Descripción</label><textarea id="task-desc" rows="2"></textarea></div>
+        <div class="form-row">
+          <div class="form-group"><label>Fecha Inicio *</label><input type="date" id="task-start-date" required></div>
+          <div class="form-group"><label>Fecha Límite</label><input type="date" id="task-end-date"></div>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label>Prioridad</label>
+            <select id="task-priority">
+              <option value="Baja">Baja</option>
+              <option value="Media" selected>Media</option>
+              <option value="Alta">Alta</option>
+              <option value="Crítica">Crítica</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>Categoría</label>
+            <select id="task-category">
+              <option value="Trabajo">Trabajo</option>
+              <option value="Personal">Personal</option>
+              <option value="Académico">Académico</option>
+              <option value="Proyecto">Proyecto</option>
+            </select>
+          </div>
+        </div>
+        <div class="form-group">
+          <label>Asignar Personas</label>
+          <select id="task-people-select" multiple style="height: 80px;"></select>
+        </div>
+        <div style="display: flex; justify-content: flex-end; gap: 8px; margin-top: 16px;">
+          <button type="button" class="btn-secondary" onclick="closeTaskModal()">Cancelar</button>
+          <button type="submit" class="btn-primary">Guardar</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <script>
+    // ===============================
+    // CONFIGURACIÓN SUPABASE
+    // Reemplaza con tus credenciales de Supabase
+    // ===============================
+    const SUPABASE_URL = "https://zyrnizdbkuiktrvdqhqa.supabase.co/rest/v1/";
+    const SUPABASE_KEY = "sb_publishable_x4jhgqu8sM0OC_IwT6BtYg_mr3vIk-i";
+
+    const supabase = (SUPABASE_URL !== "TU_SUPABASE_URL") 
+      ? supabase.createClient(SUPABASE_URL, SUPABASE_KEY) 
+      : null;
+
+    let activities = [];
+    let people = [];
+
+    const getTodayISO = () => new Date().toISOString().split('T')[0];
+
+    document.addEventListener("DOMContentLoaded", async () => {
+      await loadData();
+      renderDashboard();
+      renderActivities();
+      renderPeople();
+    });
+
+    async function loadData() {
+      if (!supabase) {
+        // Fallback a localStorage si aún no has configurado Supabase
+        activities = JSON.parse(localStorage.getItem("app_activities") || "[]");
+        people = JSON.parse(localStorage.getItem("app_people") || "[]");
+        return;
+      }
+
+      const { data: actData } = await supabase.from('activities').select('*');
+      const { data: peoData } = await supabase.from('people').select('*');
+
+      activities = actData || [];
+      people = peoData || [];
+    }
+
+    async function saveData() {
+      if (!supabase) {
+        localStorage.setItem("app_activities", JSON.stringify(activities));
+        localStorage.setItem("app_people", JSON.stringify(people));
+      }
+    }
+
+    function calculateStatus(act) {
+      if (act.completed) return "Completada";
+      const today = getTodayISO();
+      if (act.end_date && today > act.end_date) return "Vencida";
+      if (today < act.start_date) return "Próxima";
+      return "En progreso";
+    }
+
+    function renderDashboard() {
+      let pending = 0, upcoming = 0, overdue = 0, completed = 0;
+      activities.forEach(act => {
+        const st = calculateStatus(act);
+        if (st === "Completada") completed++;
+        else if (st === "Vencida") overdue++;
+        else if (st === "Próxima") upcoming++;
+        else pending++;
+      });
+      document.getElementById("stat-total").innerText = activities.length;
+      document.getElementById("stat-pending").innerText = pending;
+      document.getElementById("stat-upcoming").innerText = upcoming;
+      document.getElementById("stat-overdue").innerText = overdue;
+      document.getElementById("stat-completed").innerText = completed;
+    }
+
+    function renderActivities() {
+      const container = document.getElementById("activities-container");
+      const search = document.getElementById("search-input").value.toLowerCase();
+      const statusFilter = document.getElementById("filter-status").value;
+      const sortBy = document.getElementById("sort-by").value;
+
+      let filtered = activities.filter(act => {
+        const matchSearch = act.name.toLowerCase().includes(search);
+        const st = calculateStatus(act);
+        const matchStatus = statusFilter === "ALL" || st === statusFilter;
+        return matchSearch && matchStatus;
+      });
+
+      filtered.sort((a, b) => {
+        if (sortBy === "date-asc") return new Date(a.start_date) - new Date(b.start_date);
+        if (sortBy === "date-desc") return new Date(b.start_date) - new Date(a.start_date);
+        return 0;
+      });
+
+      if (!filtered.length) {
+        container.innerHTML = `<p style="text-align:center; color:var(--text-muted); padding:20px;">No hay actividades registradas.</p>`;
+        return;
+      }
+
+      container.innerHTML = filtered.map(act => {
+        const st = calculateStatus(act);
+        const badgeClass = `badge-${st.toLowerCase().replace(' ', '-')}`;
+        return `
+          <div class="activity-card ${act.completed ? 'completed' : ''}">
+            <input type="checkbox" ${act.completed ? 'checked' : ''} onchange="toggleComplete('${act.id}')" style="width:18px; height:18px; margin-top:3px;">
+            <div>
+              <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
+                <strong class="activity-title">${escapeHtml(act.name)}</strong>
+                <span class="badge ${badgeClass}">${st}</span>
+                <span class="badge" style="background:#f1f5f9;">${act.category || 'General'}</span>
+              </div>
+              <p style="font-size:0.85rem; color:var(--text-muted); margin-top:4px;">${escapeHtml(act.description || '')}</p>
+              <div style="font-size:0.8rem; color:var(--text-muted); margin-top:6px; display:flex; gap:12px; flex-wrap:wrap;">
+                <span>🗓 ${act.start_date}</span>
+                ${act.end_date ? `<span>🏁 ${act.end_date}</span>` : ''}
+                ${act.people && act.people.length ? `<span>👤 ${act.people.join(', ')}</span>` : ''}
+              </div>
+            </div>
+            <div class="activity-actions">
+              <button onclick="openTaskModal('${act.id}')" style="border:none; background:none; cursor:pointer;">✏️</button>
+              <button onclick="deleteTask('${act.id}')" style="border:none; background:none; cursor:pointer; color:#ef4444;">🗑️</button>
+            </div>
+          </div>
+        `;
+      }).join('');
+    }
+
+    async function toggleComplete(id) {
+      const act = activities.find(a => a.id === id);
+      if (!act) return;
+      act.completed = !act.completed;
+      act.completed_at = act.completed ? getTodayISO() : null;
+
+      if (supabase) {
+        await supabase.from('activities').update({ completed: act.completed, completed_at: act.completed_at }).eq('id', id);
+      } else {
+        saveData();
+      }
+      renderDashboard(); renderActivities();
+    }
+
+    async function deleteTask(id) {
+      if (!confirm("¿Eliminar actividad?")) return;
+      activities = activities.filter(a => a.id !== id);
+      if (supabase) {
+        await supabase.from('activities').delete().eq('id', id);
+      } else {
+        saveData();
+      }
+      renderDashboard(); renderActivities();
+    }
+
+    function openTaskModal(id = null) {
+      const select = document.getElementById("task-people-select");
+      select.innerHTML = people.map(p => `<option value="${p.email}">${p.name} (${p.email})</option>`).join('');
+
+      if (id) {
+        const act = activities.find(a => a.id === id);
+        document.getElementById("modal-title").innerText = "Editar Actividad";
+        document.getElementById("task-id").value = act.id;
+        document.getElementById("task-name").value = act.name;
+        document.getElementById("task-desc").value = act.description || '';
+        document.getElementById("task-start-date").value = act.start_date;
+        document.getElementById("task-end-date").value = act.end_date || '';
+        document.getElementById("task-priority").value = act.priority;
+        document.getElementById("task-category").value = act.category;
+      } else {
+        document.getElementById("modal-title").innerText = "Nueva Actividad";
+        document.getElementById("task-form").reset();
+        document.getElementById("task-id").value = '';
+        document.getElementById("task-start-date").value = getTodayISO();
+      }
+      document.getElementById("task-modal").style.display = "flex";
+    }
+
+    function closeTaskModal() { document.getElementById("task-modal").style.display = "none"; }
+
+    async function saveTask(e) {
+      e.preventDefault();
+      const id = document.getElementById("task-id").value;
+      const select = document.getElementById("task-people-select");
+      const selectedPeople = Array.from(select.selectedOptions).map(o => o.value);
+
+      const payload = {
+        name: document.getElementById("task-name").value,
+        description: document.getElementById("task-desc").value,
+        start_date: document.getElementById("task-start-date").value,
+        end_date: document.getElementById("task-end-date").value || null,
+        priority: document.getElementById("task-priority").value,
+        category: document.getElementById("task-category").value,
+        people: selectedPeople,
+        completed: false
+      };
+
+      if (id) {
+        if (supabase) {
+          await supabase.from('activities').update(payload).eq('id', id);
+        } else {
+          const index = activities.findIndex(a => a.id === id);
+          activities[index] = { ...activities[index], ...payload };
+        }
+      } else {
+        payload.id = "act-" + Date.now();
+        if (supabase) {
+          await supabase.from('activities').insert([payload]);
+        } else {
+          activities.push(payload);
+        }
+      }
+
+      saveData(); await loadData(); closeTaskModal(); renderDashboard(); renderActivities();
+    }
+
+    function renderPeople() {
+      const container = document.getElementById("people-container");
+      container.innerHTML = people.map(p => `
+        <div style="background:var(--card-bg); padding:12px; border-radius:var(--radius); border:1px solid var(--border-color); display:flex; justify-content:space-between; align-items:center;">
+          <div><strong>${escapeHtml(p.name)}</strong><br><small style="color:var(--text-muted);">${escapeHtml(p.email)}</small></div>
+          <button onclick="deletePerson('${p.id}')" style="border:none; background:none; cursor:pointer; color:#ef4444;">🗑️</button>
+        </div>
+      `).join('');
+    }
+
+    async function addPerson() {
+      const name = document.getElementById("person-name").value.trim();
+      const email = document.getElementById("person-email").value.trim();
+      if (!name || !email) return;
+
+      const newP = { id: "p-" + Date.now(), name, email };
+      if (supabase) {
+        await supabase.from('people').insert([newP]);
+      } else {
+        people.push(newP); saveData();
+      }
+      document.getElementById("person-name").value = '';
+      document.getElementById("person-email").value = '';
+      await loadData(); renderPeople();
+    }
+
+    async function deletePerson(id) {
+      if (!confirm("¿Eliminar persona?")) return;
+      if (supabase) {
+        await supabase.from('people').delete().eq('id', id);
+      } else {
+        people = people.filter(p => p.id !== id); saveData();
+      }
+      await loadData(); renderPeople();
+    }
+
+    function switchTab(tab) {
+      document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+      document.getElementById('view-dashboard').style.display = tab === 'dashboard' ? 'block' : 'none';
+      document.getElementById('view-people').style.display = tab === 'people' ? 'block' : 'none';
+      event.target.classList.add('active');
+    }
+
+    function escapeHtml(s) { return (s || '').replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m])); }
+  </script>
+</body>
+</html>
