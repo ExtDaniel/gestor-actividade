@@ -1,22 +1,26 @@
+const nodemailer = require("nodemailer");
+
 exports.handler = async (event, context) => {
   const SUPABASE_URL = process.env.SUPABASE_URL;
   const SUPABASE_KEY = process.env.SUPABASE_ANON_KEY;
-  const RESEND_API_KEY = process.env.RESEND_API_KEY;
+  const GMAIL_USER = process.env.GMAIL_USER;
+  const GMAIL_PASS = process.env.GMAIL_PASS;
 
-  console.log("Variables cargadas:", { 
-    url: !!SUPABASE_URL, 
-    key: !!SUPABASE_KEY, 
-    resend: !!RESEND_API_KEY 
-  });
-
-  if (!SUPABASE_URL || !SUPABASE_KEY || !RESEND_API_KEY) {
+  if (!SUPABASE_URL || !SUPABASE_KEY || !GMAIL_USER || !GMAIL_PASS) {
     console.error("Faltan variables de entorno en Netlify.");
     return { statusCode: 500, body: JSON.stringify({ error: "Faltan variables de entorno." }) };
   }
 
+  const transporter = nodemailer.createTransport({
+    service: "gmail",
+    auth: {
+      user: GMAIL_USER,
+      pass: GMAIL_PASS,
+    },
+  });
+
   try {
-    const hoy = new Date().toISOString().split('T')[0];
-    console.log("Buscando actividades para el día:", hoy);
+    const hoy = new Date().toISOString().split("T")[0];
 
     const respuesta = await fetch(
       `${SUPABASE_URL}/rest/v1/actividades?select=*,personas(*)&fecha_inicio=gte.${hoy}T00:00:00&fecha_inicio=lte.${hoy}T23:59:59&estado=eq.pendiente`,
@@ -29,10 +33,8 @@ exports.handler = async (event, context) => {
     );
 
     const actividades = await respuesta.json();
-    console.log("Actividades encontradas en Supabase:", JSON.stringify(actividades));
 
     if (!Array.isArray(actividades) || actividades.length === 0) {
-      console.log("No se encontraron actividades pendientes para la fecha actual.");
       return { statusCode: 200, body: JSON.stringify({ message: "No hay actividades para hoy." }) };
     }
 
@@ -41,32 +43,20 @@ exports.handler = async (event, context) => {
       const nombre = item.personas?.nombre || "Usuario";
       const titulo = item.titulo || "Tarea pendiente";
 
-      console.log(`Intentando enviar correo a: ${correo}`);
-
       if (correo) {
-        const resendResp = await fetch("https://api.resend.com/emails", {
-          method: "POST",
-          headers: {
-            "Authorization": `Bearer ${RESEND_API_KEY}`,
-            "Content-Type": "application/json"
-          },
-          body: JSON.stringify({
-            from: "onboarding@resend.dev",
-            to: correo,
-            subject: `Recordatorio: ${titulo}`,
-            html: `<p>Hola <strong>${nombre}</strong>,</p><p>Tienes una actividad programada para hoy: <strong>${titulo}</strong>.</p>`
-          })
+        await transporter.sendMail({
+          from: `"Planificador Cloud" <${GMAIL_USER}>`,
+          to: correo,
+          subject: `Recordatorio: ${titulo}`,
+          html: `<p>Hola <strong>${nombre}</strong>,</p><p>Tienes una actividad programada para hoy: <strong>${titulo}</strong>.</p>`
         });
-
-        const resendData = await resendResp.json();
-        console.log("Respuesta de la API de Resend:", JSON.stringify(resendData));
       }
     }
 
-    return { statusCode: 200, body: JSON.stringify({ message: "Proceso completado." }) };
+    return { statusCode: 200, body: JSON.stringify({ message: "Correos enviados exitosamente." }) };
 
   } catch (error) {
-    console.error("Error en ejecución:", error.message);
+    console.error("Error al enviar el correo:", error.message);
     return { statusCode: 500, body: JSON.stringify({ error: error.message }) };
   }
 };
