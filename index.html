@@ -175,12 +175,11 @@
     // CONFIGURACIÓN SUPABASE
     // Reemplaza con tus credenciales de Supabase
     // ===============================
-    const SUPABASE_URL = "https://zyrnizdbkuiktrvdqhqa.supabase.co/rest/v1/";
-    const SUPABASE_KEY = "sb_publishable_x4jhgqu8sM0OC_IwT6BtYg_mr3vIk-i";
+   const SUPABASE_URL = "https://zyrnizdbkuiktrvdqhqa.supabase.co";
+const SUPABASE_KEY = "sb_publishable_x4jhgqu8sM0OC_IwT6BtYg_mr3vIk-i";
 
-    const supabase = (SUPABASE_URL !== "TU_SUPABASE_URL") 
-      ? supabase.createClient(SUPABASE_URL, SUPABASE_KEY) 
-      : null;
+const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+const supabase = supabaseClient;
 
     let activities = [];
     let people = [];
