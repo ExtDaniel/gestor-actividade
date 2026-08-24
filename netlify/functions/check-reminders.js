@@ -19,26 +19,21 @@ exports.handler = async (event, context) => {
   });
 
   try {
-    const hoy = new Date().toISOString().split("T")[0];
+    // Elimina barras al final o sufijos /rest/v1 duplicados en la variable de entorno
+    const cleanUrl = SUPABASE_URL.replace(/\/+$/, "").replace(/\/rest\/v1$/, "");
+    const endpoint = `${cleanUrl}/rest/v1/activities?select=*&completed=eq.false`;
 
-    // Consulta corregida apuntando a la tabla 'activities'
-    const respuesta = await fetch(
-      `${SUPABASE_URL}/rest/v1/activities?select=*&completed=eq.false`,
-      {
-        headers: {
-          "apikey": SUPABASE_KEY,
-          "Authorization": `Bearer ${SUPABASE_KEY}`
-        }
+    const respuesta = await fetch(endpoint, {
+      headers: {
+        "apikey": SUPABASE_KEY,
+        "Authorization": `Bearer ${SUPABASE_KEY}`
       }
-    );
+    });
 
     const actividades = await respuesta.json();
 
-    // Log para depurar la respuesta exacta de Supabase
-    console.log("Respuesta de Supabase:", JSON.stringify(actividades));
-
     if (!Array.isArray(actividades) || actividades.length === 0) {
-      console.log("No hay actividades pendientes en la tabla.");
+      console.log("No se encontraron actividades pendientes.");
       return { statusCode: 200, body: JSON.stringify({ message: "Sin actividades pendientes." }) };
     }
 
