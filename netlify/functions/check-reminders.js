@@ -21,9 +21,9 @@ exports.handler = async (event, context) => {
   try {
     const hoy = new Date().toISOString().split("T")[0];
 
-    // Consulta filtrando por completed=false y el rango del día actual
+    // Consulta corregida apuntando a la tabla 'activities'
     const respuesta = await fetch(
-      `${SUPABASE_URL}/rest/v1/actividades?select=*&fecha_inicio=gte.${hoy}T00:00:00&fecha_inicio=lte.${hoy}T23:59:59&completed=eq.false`,
+      `${SUPABASE_URL}/rest/v1/activities?select=*&completed=eq.false`,
       {
         headers: {
           "apikey": SUPABASE_KEY,
@@ -34,9 +34,12 @@ exports.handler = async (event, context) => {
 
     const actividades = await respuesta.json();
 
+    // Log para depurar la respuesta exacta de Supabase
+    console.log("Respuesta de Supabase:", JSON.stringify(actividades));
+
     if (!Array.isArray(actividades) || actividades.length === 0) {
-      console.log("No hay actividades pendientes para el día de hoy.");
-      return { statusCode: 200, body: JSON.stringify({ message: "No hay actividades para hoy." }) };
+      console.log("No hay actividades pendientes en la tabla.");
+      return { statusCode: 200, body: JSON.stringify({ message: "Sin actividades pendientes." }) };
     }
 
     for (const item of actividades) {
@@ -44,17 +47,16 @@ exports.handler = async (event, context) => {
       const titulo = item.title || item.titulo || "Tarea pendiente";
 
       for (const persona of listaPersonas) {
-        // Extrae el correo (acepta 'email' o 'correo') y el nombre
         const correo = persona.email || persona.correo;
         const nombre = persona.name || persona.nombre || "Usuario";
 
         if (correo) {
-          console.log(`Enviando recordatorio a ${correo}...`);
+          console.log(`Enviando correo a: ${correo}`);
           await transporter.sendMail({
             from: `"Planificador Cloud" <${GMAIL_USER}>`,
             to: correo,
             subject: `Recordatorio: ${titulo}`,
-            html: `<p>Hola <strong>${nombre}</strong>,</p><p>Tienes una actividad programada para hoy: <strong>${titulo}</strong>.</p>`
+            html: `<p>Hola <strong>${nombre}</strong>,</p><p>Tienes la siguiente actividad pendiente: <strong>${titulo}</strong>.</p>`
           });
         }
       }
