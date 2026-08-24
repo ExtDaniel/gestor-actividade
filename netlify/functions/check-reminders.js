@@ -2,21 +2,11 @@ const nodemailer = require("nodemailer");
 
 exports.handler = async (event, context) => {
   const SUPABASE_URL = process.env.SUPABASE_URL;
-  // Acepta SUPABASE_ANON_KEY o SUPABASE_KEY por si acaso
   const SUPABASE_KEY = process.env.SUPABASE_ANON_KEY || process.env.SUPABASE_KEY;
   const GMAIL_USER = process.env.GMAIL_USER;
   const GMAIL_PASS = process.env.GMAIL_PASS;
 
-  // Imprime en el log cuáles variables existen (true) y cuáles faltan (false)
-  console.log("Chequeo de variables:", {
-    SUPABASE_URL: !!SUPABASE_URL,
-    SUPABASE_KEY: !!SUPABASE_KEY,
-    GMAIL_USER: !!GMAIL_USER,
-    GMAIL_PASS: !!GMAIL_PASS
-  });
-
   if (!SUPABASE_URL || !SUPABASE_KEY || !GMAIL_USER || !GMAIL_PASS) {
-    console.error("ERROR: Una o más variables de entorno no están disponibles.");
     return { statusCode: 500, body: JSON.stringify({ error: "Faltan variables de entorno." }) };
   }
 
@@ -31,8 +21,9 @@ exports.handler = async (event, context) => {
   try {
     const hoy = new Date().toISOString().split("T")[0];
 
+    // Consulta filtrando por completed=false y el rango del día actual
     const respuesta = await fetch(
-      `${SUPABASE_URL}/rest/v1/actividades?select=*,personas(*)&fecha_inicio=gte.${hoy}T00:00:00&fecha_inicio=lte.${hoy}T23:59:59&estado=eq.pendiente`,
+      `${SUPABASE_URL}/rest/v1/actividades?select=*&fecha_inicio=gte.${hoy}T00:00:00&fecha_inicio=lte.${hoy}T23:59:59&completed=eq.false`,
       {
         headers: {
           "apikey": SUPABASE_KEY,
@@ -49,26 +40,31 @@ exports.handler = async (event, context) => {
     }
 
     for (const item of actividades) {
-      const correo = item.personas?.email;
-      const nombre = item.personas?.nombre || "Usuario";
-      const titulo = item.titulo || "Tarea pendiente";
+      const listaPersonas = item.people || [];
+      const titulo = item.title || item.titulo || "Tarea pendiente";
 
-      if (correo) {
-        console.log(`Enviando correo a ${correo}...`);
-        await transporter.sendMail({
-          from: `"Planificador Cloud" <${GMAIL_USER}>`,
-          to: correo,
-          subject: `Recordatorio: ${titulo}`,
-          html: `<p>Hola <strong>${nombre}</strong>,</p><p>Tienes una actividad programada para hoy: <strong>${titulo}</strong>.</p>`
-        });
+      for (const persona of listaPersonas) {
+        // Extrae el correo (acepta 'email' o 'correo') y el nombre
+        const correo = persona.email || persona.correo;
+        const nombre = persona.name || persona.nombre || "Usuario";
+
+        if (correo) {
+          console.log(`Enviando recordatorio a ${correo}...`);
+          await transporter.sendMail({
+            from: `"Planificador Cloud" <${GMAIL_USER}>`,
+            to: correo,
+            subject: `Recordatorio: ${titulo}`,
+            html: `<p>Hola <strong>${nombre}</strong>,</p><p>Tienes una actividad programada para hoy: <strong>${titulo}</strong>.</p>`
+          });
+        }
       }
     }
 
-    console.log("Todos los correos se enviaron exitosamente.");
+    console.log("Proceso finalizado con éxito.");
     return { statusCode: 200, body: JSON.stringify({ message: "Correos enviados exitosamente." }) };
 
   } catch (error) {
-    console.error("Error al ejecutar la función:", error.message);
+    console.error("Error en la función:", error.message);
     return { statusCode: 500, body: JSON.stringify({ error: error.message }) };
   }
 };
