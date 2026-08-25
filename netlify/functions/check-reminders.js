@@ -9,7 +9,7 @@ exports.handler = async (event, context) => {
   try {
     const cleanUrl = SUPABASE_URL.replace(/\/+$/, "").replace(/\/rest\/v1$/, "");
 
-    // 1. Consultar actividades pendientes en 'actividades'
+    // 1. Consultar actividades pendientes en la tabla 'actividades'
     const respuesta = await fetch(`${cleanUrl}/rest/v1/actividades?completed=eq.false&select=*`, {
       headers: {
         "apikey": SUPABASE_KEY,
@@ -24,15 +24,18 @@ exports.handler = async (event, context) => {
       return { statusCode: 200, body: JSON.stringify({ message: "Sin actividades pendientes" }) };
     }
 
-    // 2. Configurar transporte con Gmail
+    // 2. Configurar el servicio de correo (Gmail)
     const transporter = nodemailer.createTransport({
       service: 'gmail',
-      auth: { user: GMAIL_USER, pass: GMAIL_PASS }
+      auth: {
+        user: GMAIL_USER,
+        pass: GMAIL_PASS
+      }
     });
 
     let enviados = 0;
 
-    // 3. Enviar correos a los asignados
+    // 3. Recorrer actividades y enviar correos
     for (const actividad of actividades) {
       if (Array.isArray(actividad.people)) {
         for (const persona of actividad.people) {
@@ -42,10 +45,10 @@ exports.handler = async (event, context) => {
               to: persona.email,
               subject: `Recordatorio [${actividad.priority || 'Normal'}]: ${actividad.name}`,
               html: `
-                <div style="font-family: Arial, sans-serif; padding: 20px; border: 1px solid #e2e8f0; border-radius: 8px;">
+                <div style="font-family: Arial, sans-serif; padding: 20px; border: 1px solid #e2e8f0; border-radius: 8px; max-width: 600px;">
                   <h2 style="color: #2b6cb0; margin-top: 0;">Hola, ${persona.name || 'Usuario'}</h2>
-                  <p>Tienes la siguiente actividad pendiente en el sistema:</p>
-                  <ul>
+                  <p>Tienes una actividad pendiente asignada en el sistema:</p>
+                  <ul style="line-height: 1.6;">
                     <li><b>Actividad:</b> ${actividad.name}</li>
                     <li><b>Descripción:</b> ${actividad.description || 'Sin descripción'}</li>
                     <li><b>Categoría:</b> ${actividad.category || 'General'}</li>
