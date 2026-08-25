@@ -45,7 +45,7 @@
       padding: 8px 12px; border: 1px solid var(--border-color); border-radius: var(--radius); outline: none; font-size: 0.9rem;
     }
 
-    .activities-list { display: flex; flex-direction: column; gap: 10px; }
+    .actividades-list { display: flex; flex-direction: column; gap: 10px; }
     .activity-card { background: var(--card-bg); border-radius: var(--radius); padding: 16px; border: 1px solid var(--border-color); display: grid; grid-template-columns: auto 1fr auto; gap: 12px; align-items: start; }
     .activity-card.completed { opacity: 0.55; background: #f1f5f9; }
     .activity-card.completed .activity-title { text-decoration: line-through; }
@@ -95,8 +95,8 @@
       </div>
 
       <div class="controls-bar">
-        <input type="text" id="search-input" placeholder="Buscar actividad..." oninput="renderActivities()" style="flex:1; min-width:180px;">
-        <select id="filter-status" onchange="renderActivities()">
+        <input type="text" id="search-input" placeholder="Buscar actividad..." oninput="renderactividades()" style="flex:1; min-width:180px;">
+        <select id="filter-status" onchange="renderactividades()">
           <option value="ALL">Todos los estados</option>
           <option value="Pendiente">Pendientes</option>
           <option value="Próxima">Próximas</option>
@@ -104,14 +104,14 @@
           <option value="Vencida">Vencidas</option>
           <option value="Completada">Completadas</option>
         </select>
-        <select id="sort-by" onchange="renderActivities()">
+        <select id="sort-by" onchange="renderactividades()">
           <option value="date-asc">Fecha (Próxima primero)</option>
           <option value="date-desc">Fecha (Lejana primero)</option>
           <option value="priority">Prioridad</option>
         </select>
       </div>
 
-      <div class="activities-list" id="activities-container"></div>
+      <div class="actividades-list" id="actividades-container"></div>
     </section>
 
     <!-- PERSONAS -->
@@ -179,7 +179,7 @@ const SUPABASE_URL = "https://zyrnizdbkuiktrvdqhqa.supabase.co";
 const SUPABASE_KEY = "sb_publishable_x4jhgqu8sM0OC_IwT6BtYg_mr3vIk-i";
 
 window.supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
-    let activities = [];
+    let actividades = [];
     let people = [];
 
     const getTodayISO = () => new Date().toISOString().split('T')[0];
@@ -187,28 +187,28 @@ window.supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
     document.addEventListener("DOMContentLoaded", async () => {
       await loadData();
       renderDashboard();
-      renderActivities();
+      renderactividades();
       renderPeople();
     });
 
     async function loadData() {
       if (!supabase) {
         // Fallback a localStorage si aún no has configurado Supabase
-        activities = JSON.parse(localStorage.getItem("app_activities") || "[]");
+        actividades = JSON.parse(localStorage.getItem("app_actividades") || "[]");
         people = JSON.parse(localStorage.getItem("app_people") || "[]");
         return;
       }
 
-      const { data: actData } = await supabase.from('activities').select('*');
+      const { data: actData } = await supabase.from('actividades').select('*');
       const { data: peoData } = await supabase.from('people').select('*');
 
-      activities = actData || [];
+      actividades = actData || [];
       people = peoData || [];
     }
 
     async function saveData() {
       if (!supabase) {
-        localStorage.setItem("app_activities", JSON.stringify(activities));
+        localStorage.setItem("app_actividades", JSON.stringify(actividades));
         localStorage.setItem("app_people", JSON.stringify(people));
       }
     }
@@ -223,27 +223,27 @@ window.supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
     function renderDashboard() {
       let pending = 0, upcoming = 0, overdue = 0, completed = 0;
-      activities.forEach(act => {
+      actividades.forEach(act => {
         const st = calculateStatus(act);
         if (st === "Completada") completed++;
         else if (st === "Vencida") overdue++;
         else if (st === "Próxima") upcoming++;
         else pending++;
       });
-      document.getElementById("stat-total").innerText = activities.length;
+      document.getElementById("stat-total").innerText = actividades.length;
       document.getElementById("stat-pending").innerText = pending;
       document.getElementById("stat-upcoming").innerText = upcoming;
       document.getElementById("stat-overdue").innerText = overdue;
       document.getElementById("stat-completed").innerText = completed;
     }
 
-    function renderActivities() {
-      const container = document.getElementById("activities-container");
+    function renderactividades() {
+      const container = document.getElementById("actividades-container");
       const search = document.getElementById("search-input").value.toLowerCase();
       const statusFilter = document.getElementById("filter-status").value;
       const sortBy = document.getElementById("sort-by").value;
 
-      let filtered = activities.filter(act => {
+      let filtered = actividades.filter(act => {
         const matchSearch = act.name.toLowerCase().includes(search);
         const st = calculateStatus(act);
         const matchStatus = statusFilter === "ALL" || st === statusFilter;
@@ -290,28 +290,28 @@ window.supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
     }
 
     async function toggleComplete(id) {
-      const act = activities.find(a => a.id === id);
+      const act = actividades.find(a => a.id === id);
       if (!act) return;
       act.completed = !act.completed;
       act.completed_at = act.completed ? getTodayISO() : null;
 
       if (supabase) {
-        await supabase.from('activities').update({ completed: act.completed, completed_at: act.completed_at }).eq('id', id);
+        await supabase.from('actividades').update({ completed: act.completed, completed_at: act.completed_at }).eq('id', id);
       } else {
         saveData();
       }
-      renderDashboard(); renderActivities();
+      renderDashboard(); renderactividades();
     }
 
     async function deleteTask(id) {
       if (!confirm("¿Eliminar actividad?")) return;
-      activities = activities.filter(a => a.id !== id);
+      actividades = actividades.filter(a => a.id !== id);
       if (supabase) {
-        await supabase.from('activities').delete().eq('id', id);
+        await supabase.from('actividades').delete().eq('id', id);
       } else {
         saveData();
       }
-      renderDashboard(); renderActivities();
+      renderDashboard(); renderactividades();
     }
 
     function openTaskModal(id = null) {
@@ -319,7 +319,7 @@ window.supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
       select.innerHTML = people.map(p => `<option value="${p.email}">${p.name} (${p.email})</option>`).join('');
 
       if (id) {
-        const act = activities.find(a => a.id === id);
+        const act = actividades.find(a => a.id === id);
         document.getElementById("modal-title").innerText = "Editar Actividad";
         document.getElementById("task-id").value = act.id;
         document.getElementById("task-name").value = act.name;
@@ -358,21 +358,21 @@ window.supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
       if (id) {
         if (supabase) {
-          await supabase.from('activities').update(payload).eq('id', id);
+          await supabase.from('actividades').update(payload).eq('id', id);
         } else {
-          const index = activities.findIndex(a => a.id === id);
-          activities[index] = { ...activities[index], ...payload };
+          const index = actividades.findIndex(a => a.id === id);
+          actividades[index] = { ...actividades[index], ...payload };
         }
       } else {
         payload.id = "act-" + Date.now();
         if (supabase) {
-          await supabase.from('activities').insert([payload]);
+          await supabase.from('actividades').insert([payload]);
         } else {
-          activities.push(payload);
+          actividades.push(payload);
         }
       }
 
-      saveData(); await loadData(); closeTaskModal(); renderDashboard(); renderActivities();
+      saveData(); await loadData(); closeTaskModal(); renderDashboard(); renderactividades();
     }
 
     function renderPeople() {
