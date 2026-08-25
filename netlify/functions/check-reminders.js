@@ -9,7 +9,7 @@ exports.handler = async (event, context) => {
   try {
     const cleanUrl = SUPABASE_URL.replace(/\/+$/, "").replace(/\/rest\/v1$/, "");
 
-    // 1. Consultar actividades pendientes en la tabla 'actividades'
+    // 1. Consultar actividades pendientes en 'actividades'
     const respuesta = await fetch(`${cleanUrl}/rest/v1/actividades?completed=eq.false&select=*`, {
       headers: {
         "apikey": SUPABASE_KEY,
@@ -24,20 +24,17 @@ exports.handler = async (event, context) => {
       return { statusCode: 200, body: JSON.stringify({ message: "Sin actividades pendientes" }) };
     }
 
-    // 2. Configurar el transporte de correo con Gmail
+    // 2. Configurar transporte con Gmail
     const transporter = nodemailer.createTransport({
       service: 'gmail',
-      auth: {
-        user: GMAIL_USER,
-        pass: GMAIL_PASS
-      }
+      auth: { user: GMAIL_USER, pass: GMAIL_PASS }
     });
 
-    let correosEnviados = 0;
+    let enviados = 0;
 
-    // 3. Recorrer actividades pendientes y notificar a cada persona
+    // 3. Enviar correos a los asignados
     for (const actividad of actividades) {
-      if (actividad.people && Array.isArray(actividad.people)) {
+      if (Array.isArray(actividad.people)) {
         for (const persona of actividad.people) {
           if (persona.email) {
             await transporter.sendMail({
@@ -45,9 +42,9 @@ exports.handler = async (event, context) => {
               to: persona.email,
               subject: `Recordatorio [${actividad.priority || 'Normal'}]: ${actividad.name}`,
               html: `
-                <div style="font-family: Arial, sans-serif; padding: 20px; border: 1px solid #ddd; border-radius: 8px;">
-                  <h2 style="color: #2b6cb0;">Hola, ${persona.name || 'Usuario'}</h2>
-                  <p>Tienes una actividad pendiente asignada:</p>
+                <div style="font-family: Arial, sans-serif; padding: 20px; border: 1px solid #e2e8f0; border-radius: 8px;">
+                  <h2 style="color: #2b6cb0; margin-top: 0;">Hola, ${persona.name || 'Usuario'}</h2>
+                  <p>Tienes la siguiente actividad pendiente en el sistema:</p>
                   <ul>
                     <li><b>Actividad:</b> ${actividad.name}</li>
                     <li><b>Descripción:</b> ${actividad.description || 'Sin descripción'}</li>
@@ -58,7 +55,7 @@ exports.handler = async (event, context) => {
                 </div>
               `
             });
-            correosEnviados++;
+            enviados++;
             console.log(`Correo enviado exitosamente a: ${persona.email}`);
           }
         }
@@ -67,11 +64,11 @@ exports.handler = async (event, context) => {
 
     return {
       statusCode: 200,
-      body: JSON.stringify({ message: `Proceso finalizado. Correos enviados: ${correosEnviados}` })
+      body: JSON.stringify({ message: `Proceso completado. Correos enviados: ${enviados}` })
     };
 
   } catch (error) {
-    console.error("Error en la ejecución:", error.message);
+    console.error("Error durante la ejecución:", error.message);
     return { statusCode: 500, body: JSON.stringify({ error: error.message }) };
   }
 };
