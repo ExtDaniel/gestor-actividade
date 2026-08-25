@@ -9,7 +9,7 @@ exports.handler = async (event, context) => {
   try {
     const cleanUrl = SUPABASE_URL.replace(/\/+$/, "").replace(/\/rest\/v1$/, "");
 
-    // 1. Consultar actividades pendientes en la tabla 'actividades'
+    // 1. Obtener tareas pendientes desde la tabla 'actividades'
     const respuesta = await fetch(`${cleanUrl}/rest/v1/actividades?completed=eq.false&select=*`, {
       headers: {
         "apikey": SUPABASE_KEY,
@@ -24,7 +24,7 @@ exports.handler = async (event, context) => {
       return { statusCode: 200, body: JSON.stringify({ message: "Sin actividades pendientes" }) };
     }
 
-    // 2. Configurar el servicio de correo (Gmail)
+    // 2. Configurar conexión con Gmail
     const transporter = nodemailer.createTransport({
       service: 'gmail',
       auth: {
@@ -35,7 +35,7 @@ exports.handler = async (event, context) => {
 
     let enviados = 0;
 
-    // 3. Recorrer actividades y enviar correos
+    // 3. Recorrer personas asignadas y despachar notificaciones
     for (const actividad of actividades) {
       if (Array.isArray(actividad.people)) {
         for (const persona of actividad.people) {
