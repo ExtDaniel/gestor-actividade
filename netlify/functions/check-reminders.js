@@ -4,21 +4,29 @@ exports.handler = async (event, context) => {
 
   try {
     const cleanUrl = SUPABASE_URL.replace(/\/+$/, "").replace(/\/rest\/v1$/, "");
-    
-    // Petición directa a la tabla activities sin ningún filtro
-    const respuesta = await fetch(`${cleanUrl}/rest/v1/activities?select=*`, {
-      headers: {
-        "apikey": SUPABASE_KEY,
-        "Authorization": `Bearer ${SUPABASE_KEY}`
-      }
+
+    // 1. Probar la tabla en inglés 'activities'
+    const resIngles = await fetch(`${cleanUrl}/rest/v1/activities?select=*`, {
+      headers: { "apikey": SUPABASE_KEY, "Authorization": `Bearer ${SUPABASE_KEY}` }
     });
+    const datosIngles = await resIngles.json();
 
-    const datos = await respuesta.json();
+    // 2. Probar la tabla en español 'actividades'
+    const resEspanol = await fetch(`${cleanUrl}/rest/v1/actividades?select=*`, {
+      headers: { "apikey": SUPABASE_KEY, "Authorization": `Bearer ${SUPABASE_KEY}` }
+    });
+    const datosEspanol = await resEspanol.json();
 
-    console.log("=== DATOS ENCONTRADOS EN SUPABASE ===");
-    console.log(JSON.stringify(datos, null, 2));
+    console.log("=== RESULTADO 'activities' (Inglés) ===");
+    console.log(JSON.stringify(datosIngles, null, 2));
 
-    return { statusCode: 200, body: JSON.stringify(datos) };
+    console.log("=== RESULTADO 'actividades' (Español) ===");
+    console.log(JSON.stringify(datosEspanol, null, 2));
+
+    return { 
+      statusCode: 200, 
+      body: JSON.stringify({ activities: datosIngles, actividades: datosEspanol }) 
+    };
   } catch (error) {
     console.error("Error:", error.message);
     return { statusCode: 500, body: JSON.stringify({ error: error.message }) };
